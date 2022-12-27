@@ -87,3 +87,43 @@ def cross_entropy(y_hat, y):
 
 def accuracy(y_hat, y):
     return (y_hat.argmax(dim=1) == y).float().mean().item()
+
+
+# 本函数已保存在d2lzh_pytorch包中方便以后使用
+def semilogy(x_vals, y_vals, x_label, y_label, x2_vals=None, y2_vals=None,
+             legend=None, figsize=(3.5, 2.5)):
+    set_figsize(figsize)
+    plt.xlabel(x_label)
+    plt.ylabel(y_label)
+    plt.semilogy(x_vals, y_vals)
+    if x2_vals and y2_vals:
+        plt.semilogy(x2_vals, y2_vals, linestyle=':')
+        plt.legend(legend)
+
+
+def fit_and_plot(train_features, test_features, train_labels, test_labels):
+    num_epochs, loss = 100, torch.nn.MSELoss()
+    net = torch.nn.Linear(train_features.shape[-1], 1)  # 其实相当于初始化一个随机的W（100*1）和b
+    # 通过Linear文档可知，pytorch已经将参数初始化了，所以我们这里就不手动初始化了
+
+    batch_size = min(10, train_labels.shape[0])  # 小批量
+    dataset = torch.utils.data.TensorDataset(train_features, train_labels)  # 其实就是把数据集丢到一个容器里
+    train_iter = torch.utils.data.DataLoader(dataset, batch_size, shuffle=True)  # 相当于一个迭代器，每次抽取batch_size的数据
+
+    optimizer = torch.optim.SGD(net.parameters(), lr=0.01)  # 优化器，这里是用梯度下降
+    train_ls, test_ls = [], []  # 记录的损失
+    for _ in range(num_epochs):
+        for X, y in train_iter:
+            l = loss(net(X), y.view(-1, 1))  # net算出来的是估计值，与y值计算做损失值
+            optimizer.zero_grad()  # 梯度清零
+            l.backward()  # 计算梯度
+            optimizer.step()  # 优化器更新
+        train_labels = train_labels.view(-1, 1)  # 训练的y
+        test_labels = test_labels.view(-1, 1)  # 测试的y
+        train_ls.append(loss(net(train_features), train_labels).item())  # 记录更新之后的net损失值
+        test_ls.append(loss(net(test_features), test_labels).item())  # 记录更新之后的net损失值
+    print('final epoch: train loss', train_ls[-1], 'test loss', test_ls[-1])
+    semilogy(range(1, num_epochs + 1), train_ls, 'epochs', 'loss',  # 画图
+             range(1, num_epochs + 1), test_ls, ['train', 'test'])
+    print('weight:', net.weight.data,  # 输出权重和偏置
+          '\nbias:', net.bias.data)
