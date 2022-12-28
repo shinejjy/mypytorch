@@ -127,3 +127,9 @@ def fit_and_plot(train_features, test_features, train_labels, test_labels):
              range(1, num_epochs + 1), test_ls, ['train', 'test'])
     print('weight:', net.weight.data,  # 输出权重和偏置
           '\nbias:', net.bias.data)
+
+
+def init_params(num_inputs):
+    w = torch.randn((num_inputs, 1), requires_grad=True)
+    b = torch.zeros(1, requires_grad=True)
+    return [w, b]
