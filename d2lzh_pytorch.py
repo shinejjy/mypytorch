@@ -1,6 +1,7 @@
 import sys
 
 import torch
+from torch import nn
 import torchvision.transforms as transforms
 from IPython import display
 from matplotlib import pyplot as plt
@@ -133,3 +134,20 @@ def init_params(num_inputs):
     w = torch.randn((num_inputs, 1), requires_grad=True)
     b = torch.zeros(1, requires_grad=True)
     return [w, b]
+
+
+class FlattenLayer(nn.Module):  # 张量扁平化
+    def __init__(self):
+        super(FlattenLayer, self).__init__()
+
+    def forward(self, x):  # x shape: (batch, *, *, ...)
+        return x.view(x.shape[0], -1)
+
+
+def corr2d(X, K):
+    h, w = K.shape
+    Y = torch.zeros((X.shape[0] - h + 1, X.shape[1] - w + 1))
+    for i in range(Y.shape[0]):
+        for j in range(Y.shape[1]):
+            Y[i, j] = (X[i: i+h, j: j+w] * K).sum()
+    return Y
