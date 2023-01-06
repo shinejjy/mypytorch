@@ -24,3 +24,24 @@ def loss_plot(step, loss, x_label='Step', y_label='Loss', x_limit=1):
     d2l.plt.plot(step, loss)
     d2l.plt.xlabel(x_label)
     d2l.plt.ylabel(y_label)
+
+
+def corr2d_multi_in(X, K):
+    res = corr2d(X[0, :, :], K[0, :, :])
+    for i in range(1, X.shape[0]):
+        res += corr2d(X[i, :, :], K[i, :, :])
+    return res
+
+
+def corr2d_multi_in_out(X, K):
+    return torch.stack([corr2d_multi_in(X, k) for k in K])
+
+
+def corr2d_multi_in_out_1x1(X, K):
+    c_o, c_i = K.shape[0: 2]
+    h, w = X.shape[1: 3]
+    X = X.view(c_i, h * w)
+    K = K.view(c_o, c_i)
+    res = torch.mm(K, X).view(c_o, h, w)
+    return res
+
