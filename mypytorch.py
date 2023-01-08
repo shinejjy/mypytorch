@@ -2,6 +2,8 @@ import sys
 import torch
 import d2lzh_pytorch as d2l
 from torch import nn
+import torchvision
+import torch.nn.functional as F
 import time
 import torchvision.transforms as transforms
 from IPython import display
@@ -89,7 +91,7 @@ def train_ch5(net, train_iter, test_iter, batch_size, optimizer, device, num_epo
     l_lst = []
     for epoch in range(num_epoch):
         train_l_sum, train_acc_sum, n, batch_count, start = 0.0, 0.0, 0, 0, time.time()
-        for X, y in train_iter:
+        for i, (X, y) in enumerate(train_iter):
             X = X.to(device)
             y = y.to(device)
             y_hat = net(X)
@@ -106,3 +108,30 @@ def train_ch5(net, train_iter, test_iter, batch_size, optimizer, device, num_epo
         print('epoch %d, loss %.4f, train acc %.3f, test acc %.3f, time %.1f sec'
               % (epoch + 1, train_l_sum / batch_count, train_acc_sum / n, test_acc, time.time() - start))
     return l_lst
+
+
+def load_data_fashion_mnist(batch_size, resize=None, root='~/Datasets/FashionMNIST'):
+    """Download the fashion mnist dataset and then load into memory."""
+    trans = []
+    if resize:
+        trans.append(torchvision.transforms.Resize(size=resize))
+    trans.append(torchvision.transforms.ToTensor())
+
+    transform = torchvision.transforms.Compose(trans)
+    mnist_train = torchvision.datasets.FashionMNIST(root=root, train=True, download=True, transform=transform)
+    mnist_test = torchvision.datasets.FashionMNIST(root=root, train=False, download=True, transform=transform)
+    print('训练样本集容量:', len(mnist_train), '测试样本集容量:', len(mnist_test))
+
+    train_iter = torch.utils.data.DataLoader(mnist_train, batch_size=batch_size, shuffle=True, num_workers=4)
+    test_iter = torch.utils.data.DataLoader(mnist_test, batch_size=batch_size, shuffle=False, num_workers=4)
+
+    return train_iter, test_iter
+
+
+class GlobalAvgPool2d(nn.Module):
+    # 全局平均池化层可通过将池化窗口形状设置成输入的高和宽实现
+    def __init__(self):
+        super(GlobalAvgPool2d, self).__init__()
+
+    def forward(self, x):
+        return F.avg_pool2d(x, kernel_size=x.size()[2:])
