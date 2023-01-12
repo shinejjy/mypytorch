@@ -8,6 +8,7 @@ import time
 import torchvision.transforms as transforms
 from IPython import display
 from matplotlib import pyplot as plt
+import zipfile
 import numpy as np
 import random
 
@@ -27,6 +28,21 @@ def loss_plot(step, loss, x_label='Step', y_label='Loss', x_limit=1):
     d2l.plt.plot(step, loss)
     d2l.plt.xlabel(x_label)
     d2l.plt.ylabel(y_label)
+
+
+def plot(x, y, xlabel='x', ylabel='y', xlim=None, ylim=None, xticks=None, yticks=None, figsize=(5, 2.5)):
+    plt.rcParams['figure.figsize'] = figsize
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    if xlim:
+        plt.xlim(xlim)
+    if ylim:
+        plt.ylim(ylim)
+    if xticks:
+        plt.xticks(x[::xticks])
+    if yticks:
+        plt.yticks(y[::yticks])
+    plt.plot(x, y)
 
 
 def corr2d_multi_in(X, K):
@@ -135,3 +151,123 @@ class GlobalAvgPool2d(nn.Module):
 
     def forward(self, x):
         return F.avg_pool2d(x, kernel_size=x.size()[2:])
+
+
+class Residual(nn.Module):
+    def __init__(self, in_channels, out_channels, use_1x1conv=False, stride=1):
+        super(Residual, self).__init__()
+        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1, stride=stride)
+        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1)
+        if use_1x1conv:
+            self.conv3 = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=stride)
+        else:
+            self.conv3 = None
+        self.bn1 = nn.BatchNorm2d(out_channels)
+        self.bn2 = nn.BatchNorm2d(out_channels)
+
+    def forward(self, X):
+        Y = F.relu(self.bn1(self.conv1(X)))
+        Y = self.bn2(self.conv2(Y))
+        if self.conv3:
+            X = self.conv3(X)
+        output = F.relu(X + Y)
+        return output
+
+
+class FlattenLayer(nn.Module):  # 张量扁平化
+    def __init__(self):
+        super(FlattenLayer, self).__init__()
+
+    def forward(self, x):  # x shape: (batch, *, *, ...)
+        return x.view(x.shape[0], -1)
+
+
+def load_data_jay_lyrics():
+    """
+    :return: corpus_chars, idx_to_char, vocab_size, corpus_indices
+    """
+    with zipfile.ZipFile('data/jaychou_lyrics.txt.zip') as zin:
+        with zin.open('jaychou_lyrics.txt') as f:
+            corpus_chars = f.read().decode('utf-8')
+    corpus_chars = corpus_chars.replace('\n', ' ').replace('\r', ' ')
+    corpus_chars = corpus_chars[0:10000]
+    idx_to_char = list(set(corpus_chars))
+    char_to_idx = dict([(char, i) for i, char in enumerate(idx_to_char)])
+    vocab_size = len(char_to_idx)
+    corpus_indices = [char_to_idx[char] for char in corpus_chars]
+    return corpus_chars, idx_to_char, vocab_size, corpus_indices
+
+
+def data_iter_random(corpus_indices, batch_size, num_steps, device=None):
+    """
+    :param corpus_indices: 全局字符索引
+    :param batch_size: 批量大小
+    :param num_steps: 时间步数
+    :param device: 设备
+    :return: 随机采样
+    """
+    # 减1是因为输出的索引x是相应输入的索引y加1
+    num_examples = (len(corpus_indices) - 1) // num_steps
+    epoch_size = num_examples // batch_size
+    example_indices = list(range(num_examples))
+    random.shuffle(example_indices)
+
+    # 返回从pos开始的长为num_steps的序列
+    def _data(pos):
+        return corpus_indices[pos: pos + num_steps]
+
+    if device is None:
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    for i in range(epoch_size):
+        # 每次读取batch_size个随机样本
+        i = i * batch_size
+        batch_indices = example_indices[i: i + batch_size]
+        X = [_data(j * num_steps) for j in batch_indices]
+        Y = [_data(j * num_steps + 1) for j in batch_indices]
+        yield torch.tensor(X, dtype=torch.float32, device=device), torch.tensor(Y, dtype=torch.float32, device=device)
+
+
+def data_iter_consecutive(corpus_indices, batch_size, num_steps, device=None):
+    """
+    :param corpus_indices: 全局字符索引
+    :param batch_size: 批量大小
+    :param num_steps: 时间步数
+    :param device:None 设备
+    :return: 相邻采样
+    """
+    if device is None:
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    corpus_indices = torch.tensor(corpus_indices, dtype=torch.float32, device=device)
+    data_len = len(corpus_indices)
+    batch_len = data_len // batch_size
+    indices = corpus_indices[0: batch_len * batch_size].view(batch_size, batch_len)
+    epoch_size = (batch_len - 1) // num_steps
+    for i in range(epoch_size):
+        j = i * num_steps
+        X = indices[:, j: j + num_steps]
+        Y = indices[:, j + 1: j + num_steps + 1]
+        yield X, Y
+
+
+def one_hot(x, n_class, dtype=torch.float32):
+    # X shape: (batch), output shape: (batch, n_class)
+    x = x.long()
+    res = torch.zeros((x.shape[0], n_class), dtype=dtype)
+    res.scatter_(1, x.view(-1, 1), 1)
+    return res
+
+
+def to_onehot(x, n_class):
+    # X shape: (batch, seq_len), output: seq_len elements of (batch, n_class)
+    return [one_hot(x[:, i], n_class) for i in range(x.shape[1])]
+
+
+def _one(shape, device):
+    ts = torch.tensor(np.random.normal(0, 0.01, size=shape), dtype=torch.float32, device=device)
+    return nn.Parameter(ts, requires_grad=True)
+
+
+def _zero(shape, device):
+    ts = torch.zeros(size=shape, dtype=torch.float32, device=device)
+    return nn.Parameter(ts, requires_grad=True)
