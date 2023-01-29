@@ -31,7 +31,7 @@ def loss_plot(step, loss, x_label='Step', y_label='Loss', x_limit=1):
     d2l.plt.ylabel(y_label)
 
 
-def plot(x, y, xlabel='x', ylabel='y', xlim=None, ylim=None, xticks=None, yticks=None, figsize=(5, 2.5)):
+def plot(x, y, xlabel='x', ylabel='y', xlim=None, ylim=None, xticks=None, yticks=None, figsize=(5, 2.5), other_funcs=None):
     d2l.set_figsize(figsize=figsize)
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
@@ -43,6 +43,9 @@ def plot(x, y, xlabel='x', ylabel='y', xlim=None, ylim=None, xticks=None, yticks
         plt.xticks(x[::xticks])
     if yticks:
         plt.yticks(y[::yticks])
+    if other_funcs:
+        for func in other_funcs:
+            func[0](func[1])
     plt.plot(x, y)
 
 
