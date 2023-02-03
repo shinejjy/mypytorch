@@ -31,7 +31,8 @@ def loss_plot(step, loss, x_label='Step', y_label='Loss', x_limit=1):
     d2l.plt.ylabel(y_label)
 
 
-def plot(x, y, xlabel='x', ylabel='y', xlim=None, ylim=None, xticks=None, yticks=None, figsize=(5, 2.5), other_funcs=None):
+def plot(x, y, xlabel='x', ylabel='y', xlim=None, ylim=None, xticks=None, yticks=None, figsize=(5, 2.5),
+         other_funcs=None):
     d2l.set_figsize(figsize=figsize)
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
@@ -477,3 +478,38 @@ def train_and_predict_rnn_pytorch(model, num_hiddens, vocab_size, device, corpus
             for prefix in prefixes:
                 print(' -', predict_rnn_pytorch(prefix, pred_len, model, vocab_size, device, idx_to_char, char_to_idx))
         plot(pred_list, perplexity_lst, xlabel='epoch', ylabel='perplexity')
+
+
+def train_2d(trainer):
+    x1, x2, s1, s2 = -5, -2, 0, 0  # s1和s2是自变量状态，本章后续几节会使用
+    results = [(x1, x2)]
+    for i in range(20):
+        x1, x2, s1, s2 = trainer(x1, x2, s1, s2)
+        results.append((x1, x2))
+        print('epoch %d, x1 %f, x2 %f' % (i + 1, x1, x2))
+    return results
+
+
+def show_trace_2d(f, results):
+    d2l.plt.plot(*zip(*results), '-o', color='#ff7f0e')
+    x1, x2 = np.meshgrid(np.arange(-5.5, 1.0, 0.1), np.arange(-3.0, 1.0, 0.1))
+    d2l.plt.contour(x1, x2, f(x1, x2), colors='#1f77b4')
+    d2l.plt.xlabel('x1')
+    d2l.plt.ylabel('x2')
+
+
+# 本函数已保存在d2lzh_pytorch包中方便以后使用
+def show_images(imgs, num_rows, num_cols, scale=2):
+    figsize = (num_cols * scale, num_rows * scale)
+    _, axes = d2l.plt.subplots(num_rows, num_cols, figsize=figsize)
+    for i in range(num_rows):
+        for j in range(num_cols):
+            axes[i][j].imshow(imgs[i * num_cols + j])
+            axes[i][j].axes.get_xaxis().set_visible(False)
+            axes[i][j].axes.get_yaxis().set_visible(False)
+    return axes
+
+
+def apply(img, aug, num_rows=2, num_cols=4, scale=1.5):
+    Y = [aug(img) for _ in range(num_rows * num_cols)]
+    show_images(Y, num_rows, num_cols, scale)
